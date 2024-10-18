@@ -2,42 +2,66 @@
 #include <Wire.h>
 #include <stdint.h>
 #include <queue>
+#include <vector>
+#include <numeric>
+#include <string.h>
 #include <LiquidCrystal_I2C.h>
 
 // Modes state enum
 enum ProgMode : uint8_t
 {
-    RGBLEDTestMode, // Prints millis() to LCD, sine cycles phases of LEDs. Second line shows most recently pressed key
+    RGBLEDTestMode, // Prints millis() to LCD, sine cycles phases of LEDs. Second line shows bool toggled by VALUE
     RawResMeasure,  // Shows raw meaured resistance. VALUE toggles LEDs that simply show resistance "strength"
     E12ResMeasure,  // Shows measured res rounded to nearest E12, with decade. VALUE toggles LEDs that show color bands.
     E12ResSearch    // Uses VALUE key to cycle through E12 values
 };
 
 // Constants
-const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 36, PIN_BUTTON1 = 35, PIN_BUTTON2 = 34,
+const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON1 = 35, PIN_BUTTON2 = 34,
               PIN_R1 = 32, PIN_B1 = 33, PIN_G1 = 25, // LED 1
     PIN_R2 = 18, PIN_B2 = 19, PIN_G2 = 21,           // LED 2
     PIN_R3 = 4, PIN_B3 = 16, PIN_G3 = 17;            // LED 3
-const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200;
+const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10;
 
 // Fields
 LiquidCrystal_I2C *_lcdScreen = new LiquidCrystal_I2C{0x27, 16, 2};
-uint64_t _tOfLastKey1 = 0, _tOfLastKey2 = 0, _tOfLastLCDRfrsh = 0;
+uint64_t _tOfLastKey1 = 0, _tOfLastKey2 = 0, _tOfLastLCDRfrsh = 0, TEMPKPR = 0;
 std::queue<uint8_t> *_keypressQueue = new std::queue<uint8_t>{};
+std::vector<uint32_t> *_adcRecentSamples = new std::vector<uint32_t>{};
 ProgMode _currProgramMode = RGBLEDTestMode;
 uint8_t _valueKeyState = 0;
 
+void UpdateADCSamples()
+{
+    _adcRecentSamples->insert(_adcRecentSamples->begin(), analogReadMilliVolts(PIN_RESMEASURE));
+    if (_adcRecentSamples->size() > ADC_SAMPLE_COUNT)
+    {
+        _adcRecentSamples->pop_back();
+    }
+}
+
+double GetADCAverage()
+{
+    if (_adcRecentSamples->empty())
+    {
+        return 0;
+    }
+    return std::accumulate(_adcRecentSamples->begin(), _adcRecentSamples->end(), 0) / (double)_adcRecentSamples->size();
+}
+
 double MeasureResistance()
 {
-    double res2V = 3.3 * analogRead(PIN_RESMEASURE) / 4095.0;
+    // double res2V = 3.3 * (analogRead(PIN_RESMEASURE) / 4096.0);
+    double res2V = 1000.0 * GetADCAverage();
     double current = (3.3 - res2V) / 1000.0;
-    return res2V / current;
+    double res2 = res2V / current;
+    return res2 > 1000000 ? -1 : res2;
 }
 
 // Handles keypress interrupts
 void IRAM_ATTR ISRButton1()
 {
-    if (millis() - _tOfLastKey1 < KEYPRESS_COOLDOWN_MS || digitalRead(PIN_BUTTON1) == LOW)
+    if (millis() - _tOfLastKey1 < KEYPRESS_COOLDOWN_MS)
         return;
 
     // Add keypress to queue
@@ -47,7 +71,7 @@ void IRAM_ATTR ISRButton1()
 
 void IRAM_ATTR ISRButton2()
 {
-    if (millis() - _tOfLastKey2 < KEYPRESS_COOLDOWN_MS || digitalRead(PIN_BUTTON2) == LOW)
+    if (millis() - _tOfLastKey2 < KEYPRESS_COOLDOWN_MS)
         return;
 
     // Add keypress to queue
@@ -62,8 +86,8 @@ void setup()
     pinMode(PIN_RESMEASURE, INPUT);
     pinMode(PIN_BUTTON1, INPUT);
     pinMode(PIN_BUTTON2, INPUT);
-    attachInterrupt(PIN_BUTTON1, ISRButton1, ONHIGH);
-    attachInterrupt(PIN_BUTTON2, ISRButton2, ONHIGH);
+    attachInterrupt(PIN_BUTTON1, ISRButton1, HIGH);
+    attachInterrupt(PIN_BUTTON2, ISRButton2, HIGH);
 
     pinMode(PIN_R1, OUTPUT);
     pinMode(PIN_B1, OUTPUT);
@@ -85,6 +109,8 @@ void setup()
 void loop()
 {
     uint64_t currTime = millis();
+    // Update ADC readings
+    UpdateADCSamples();
 
     // Handle keypresses
     while (!_keypressQueue->empty())
@@ -99,27 +125,40 @@ void loop()
             }
             else
             {
-                _currProgramMode = (ProgMode)(_currProgramMode + 1U);
+                // _currProgramMode = (ProgMode)(_currProgramMode + 1U);
             }
-            _valueKeyState=0;
+            // _valueKeyState = 0;
         }
         // Key 2 is VALUE
         else if (key == 2)
         {
             switch (_currProgramMode)
             {
-            default: // TODO =======================================================================
+            case RGBLEDTestMode:
+                _valueKeyState = (_valueKeyState == 0) ? 1 : 0;
                 break;
             }
         }
+
+        TEMPKPR++;
         _keypressQueue->pop();
     }
 
-    // Refresh LCD
+    // Check LCD refresh due
     if (currTime - _tOfLastLCDRfrsh > LCD_RFRSH_DLY_MS)
     {
         _tOfLastLCDRfrsh = currTime;
         _lcdScreen->clear();
-        _lcdScreen->print(MeasureResistance());
+        switch (_currProgramMode)
+        {
+        case RGBLEDTestMode:
+            _lcdScreen->print(millis());
+            _lcdScreen->setCursor(0, 1);
+            _lcdScreen->print("S:");
+            _lcdScreen->write((_valueKeyState == 0) ? 0xE0 : 0xE2);
+            _lcdScreen->print((" N:" + std::to_string(TEMPKPR) + " R:" + std::to_string(MeasureResistance())).c_str());
+            // _lcdScreen->write(0xF4);
+            break;
+        }
     }
 }
