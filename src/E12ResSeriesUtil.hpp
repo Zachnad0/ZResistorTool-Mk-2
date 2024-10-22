@@ -1,0 +1,56 @@
+#pragma once
+#include <stdint.h>
+#include <array>
+#include <math.h>
+#include <string>
+
+#define __E12RESSERIESUTIL_H__
+
+namespace util
+{
+    class E12ResSeriesUtil
+    {
+    private:
+        static const std::array<uint8_t, 12> RES_VALS;
+        static const uint8_t EXP_MIN = 0, EXP_MAX = 4;
+
+    public:
+        static void FindNearestE12Value(double targetValue, uint8_t &outValue, uint8_t &outExp)
+        {
+            // Search through all values and find nearest, which is when the previous error is LESS than the current
+            double prevErr = 999999999;
+            for (uint8_t currExp = EXP_MIN; currExp <= EXP_MAX; currExp++)
+            {
+                for (uint8_t rvI = 0; rvI < RES_VALS.size(); rvI++)
+                {
+                    double currErr = std::pow((double)RES_VALS[rvI] * std::pow(10, currExp) - targetValue, 2);
+                    if (prevErr <= currErr)
+                    {
+                        if (rvI == 0)
+                        {
+                            outValue = *RES_VALS.end();
+                            outExp = currExp - 1;
+                        }
+                        else
+                        {
+                            outValue = RES_VALS[rvI - 1];
+                            outExp = currExp;
+                        }
+                        return;
+                    }
+                    prevErr = currErr;
+                }
+            }
+
+            outValue = 0;
+            outExp = 0;
+        }
+
+        static std::string ResValToString(uint8_t value, uint8_t exp)
+        {
+            std::string result = ""; // CONTINUE HERE =======================================================
+            // if (exp >= 6
+        }
+    };
+    const std::array<uint8_t, 12> E12ResSeriesUtil::RES_VALS = {10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82}; // C++ so silly like that
+}

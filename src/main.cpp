@@ -6,6 +6,7 @@
 #include <numeric>
 #include <string.h>
 #include <LiquidCrystal_I2C.h>
+#include "E12ResSeriesUtil.hpp"
 
 // Modes state enum
 enum ProgMode : uint8_t
@@ -21,7 +22,7 @@ const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON1 = 35,
               PIN_R1 = 32, PIN_B1 = 33, PIN_G1 = 25, // LED 1
     PIN_R2 = 18, PIN_B2 = 19, PIN_G2 = 21,           // LED 2
     PIN_R3 = 4, PIN_B3 = 16, PIN_G3 = 17;            // LED 3
-const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10;
+const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10, RESMEASURE_RES1 = 2200;
 
 // Fields
 LiquidCrystal_I2C *_lcdScreen = new LiquidCrystal_I2C{0x27, 16, 2};
@@ -33,10 +34,10 @@ uint8_t _valueKeyState = 0;
 
 void UpdateADCSamples()
 {
-    _adcRecentSamples->insert(_adcRecentSamples->begin(), analogReadMilliVolts(PIN_RESMEASURE));
+    _adcRecentSamples->push_back(analogReadMilliVolts(PIN_RESMEASURE));
     if (_adcRecentSamples->size() > ADC_SAMPLE_COUNT)
     {
-        _adcRecentSamples->pop_back();
+        _adcRecentSamples->erase(_adcRecentSamples->begin());
     }
 }
 
@@ -51,9 +52,9 @@ double GetADCAverage()
 
 double MeasureResistance()
 {
-    // double res2V = 3.3 * (analogRead(PIN_RESMEASURE) / 4096.0);
-    double res2V = 1000.0 * GetADCAverage();
-    double current = (3.3 - res2V) / 1000.0;
+    // See https://www.desmos.com/calculator/h8w3dxdxvp for range
+    double res2V = GetADCAverage() / 1000;
+    double current = (3.3 - res2V) / RESMEASURE_RES1;
     double res2 = res2V / current;
     return res2 > 1000000 ? -1 : res2;
 }
@@ -81,6 +82,8 @@ void IRAM_ATTR ISRButton2()
 
 void setup()
 {
+    _adcRecentSamples->reserve(ADC_SAMPLE_COUNT);
+
     // Pins setup
     Wire.begin(PIN_SDA, PIN_SCL);
     pinMode(PIN_RESMEASURE, INPUT);
@@ -153,12 +156,21 @@ void loop()
         {
         case RGBLEDTestMode:
             _lcdScreen->print(millis());
+            _lcdScreen->print(" M:");
+            double mr = MeasureResistance();
+            _lcdScreen->print(mr);
             _lcdScreen->setCursor(0, 1);
-            _lcdScreen->print("S:");
-            _lcdScreen->write((_valueKeyState == 0) ? 0xE0 : 0xE2);
-            _lcdScreen->print((" N:" + std::to_string(TEMPKPR) + " R:" + std::to_string(MeasureResistance())).c_str());
+            uint8_t rVal = 0, rExp = 0;
+            util::E12ResSeriesUtil::FindNearestE12Value(mr, rVal, rExp);
+            _lcdScreen->print("V:");
+            _lcdScreen->print(rVal);
+            _lcdScreen->print(" E:");
+            _lcdScreen->print(rExp);
+            // _lcdScreen->print(MeasureResistance());
             // _lcdScreen->write(0xF4);
             break;
         }
     }
+
+    delay(100);
 }
