@@ -7,6 +7,7 @@
 #include <string.h>
 #include <LiquidCrystal_I2C.h>
 #include "E12ResSeriesUtil.hpp"
+#include "LEDControl.hpp"
 
 // Modes state enum
 enum ProgMode : uint8_t
@@ -23,6 +24,7 @@ const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON1 = 35,
     PIN_R2 = 18, PIN_B2 = 19, PIN_G2 = 21,           // LED 2
     PIN_R3 = 4, PIN_B3 = 16, PIN_G3 = 17;            // LED 3
 const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10, RESMEASURE_RES1 = 2200;
+const std::string LED_DIGIT1 = "digit1", LED_DIGIT2 = "digit2", LED_EXP = "exp";
 
 // Fields
 LiquidCrystal_I2C *_lcdScreen = new LiquidCrystal_I2C{0x27, 16, 2};

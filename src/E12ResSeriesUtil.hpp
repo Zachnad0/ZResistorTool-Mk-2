@@ -48,8 +48,31 @@ namespace util
 
         static std::string ResValToString(uint8_t value, uint8_t exp)
         {
-            std::string result = ""; // CONTINUE HERE =======================================================
-            // if (exp >= 6
+            // E.g. 330Ω, 6.8kΩ
+            std::string result;
+            switch (exp)
+            {
+            case 0: // 33
+                result = value;
+                break;
+            case 1: // 330
+                result = value * 10;
+                break;
+            case 2: // 3.3k
+                result = value / 10;
+                result += 'k';
+                break;
+            case 3: // 33k
+                result = value;
+                result += 'k';
+                break;
+            case 4: // 330k
+                result = value * 10;
+                result += 'k';
+                break;
+            }
+
+            return result;
         }
     };
     const std::array<uint8_t, 12> E12ResSeriesUtil::RES_VALS = {10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82}; // C++ so silly like that
