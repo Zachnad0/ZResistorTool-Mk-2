@@ -9,6 +9,8 @@
 #include "E12ResSeriesUtil.hpp"
 #include "LEDControl.hpp"
 
+#define __sineWave0To1(phase) 0.5 * sin((FREQ * currMillis * (2 * PI / 1000)) + phase) + 0.5
+
 // Modes state enum
 enum ProgMode : uint8_t
 {
@@ -25,9 +27,11 @@ const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON1 = 35,
     PIN_R3 = 4, PIN_B3 = 16, PIN_G3 = 17;            // LED 3
 const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10, RESMEASURE_RES1 = 2200;
 const std::string LED_DIGIT1 = "digit1", LED_DIGIT2 = "digit2", LED_EXP = "exp";
+const std::map<ProgMode, uint32_t> MODE_LOOP_DELAY = {{RGBLEDTestMode, 1 / 244.0}};
 
 // Fields
 LiquidCrystal_I2C *_lcdScreen = new LiquidCrystal_I2C{0x27, 16, 2};
+util::LEDControl *_ledController = new util::LEDControl{};
 uint64_t _tOfLastKey1 = 0, _tOfLastKey2 = 0, _tOfLastLCDRfrsh = 0, TEMPKPR = 0;
 std::queue<uint8_t> *_keypressQueue = new std::queue<uint8_t>{};
 std::vector<uint32_t> *_adcRecentSamples = new std::vector<uint32_t>{};
@@ -109,11 +113,16 @@ void setup()
     _lcdScreen->backlight();
     _lcdScreen->noBlink();
     _lcdScreen->noCursor();
+
+    // Init LEDs
+    _ledController->AddLED(LED_DIGIT1, PIN_R1, PIN_G1, PIN_B1);
+    _ledController->AddLED(LED_DIGIT2, PIN_R2, PIN_G2, PIN_B2);
+    _ledController->AddLED(LED_EXP, PIN_R3, PIN_G3, PIN_B3);
 }
 
 void loop()
 {
-    uint64_t currTime = millis();
+    uint64_t currMillis = millis();
     // Update ADC readings
     UpdateADCSamples();
 
@@ -149,15 +158,27 @@ void loop()
         _keypressQueue->pop();
     }
 
-    // Check LCD refresh due
-    if (currTime - _tOfLastLCDRfrsh > LCD_RFRSH_DLY_MS)
+    // Do standard loop actions for current mode, control LEDs here
+    switch (_currProgramMode)
     {
-        _tOfLastLCDRfrsh = currTime;
+    case RGBLEDTestMode:
+        // Cycle RGB colors depending on function
+        const double FREQ = 1, PHI1 = 0, PHI2 = 2 * PI / 3, PHI3 = 4 * PI / 3;
+        _ledController->WriteLED(LED_DIGIT1, __sineWave0To1(PHI1), __sineWave0To1(PHI2), __sineWave0To1(PHI3));
+        _ledController->WriteLED(LED_DIGIT2, __sineWave0To1(PHI3), __sineWave0To1(PHI1), __sineWave0To1(PHI2));
+        _ledController->WriteLED(LED_EXP, __sineWave0To1(PHI2), __sineWave0To1(PHI3), __sineWave0To1(PHI1));
+        break;
+    }
+
+    // Check LCD refresh due
+    if (currMillis - _tOfLastLCDRfrsh > LCD_RFRSH_DLY_MS)
+    {
+        _tOfLastLCDRfrsh = currMillis;
         _lcdScreen->clear();
         switch (_currProgramMode)
         {
         case RGBLEDTestMode:
-            _lcdScreen->print(millis());
+            _lcdScreen->print(currMillis);
             _lcdScreen->print(" M:");
             double mr = MeasureResistance();
             _lcdScreen->print(mr);
@@ -174,5 +195,7 @@ void loop()
         }
     }
 
-    delay(100);
+    // Delay loop based on current program mode
+    auto delayIter = MODE_LOOP_DELAY.find(_currProgramMode);
+    delay(delayIter == MODE_LOOP_DELAY.end() ? 100U : delayIter->second);
 }

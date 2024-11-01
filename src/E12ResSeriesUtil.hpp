@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <array>
+#include <map>
 #include <math.h>
 #include <string>
 
@@ -8,6 +9,23 @@
 
 namespace util
 {
+    struct ResColor
+    {
+    private:
+        uint8_t _r, _g, _b;
+
+    public:
+        ResColor(double rVal, double gVal, double bVal)
+        {
+            _r = (uint8_t)std::round(rVal * 255);
+            _g = (uint8_t)std::round(gVal * 255);
+            _b = (uint8_t)std::round(bVal * 255);
+        }
+        inline double GetR() { return _r / 255.0; }
+        inline double GetG() { return _g / 255.0; }
+        inline double GetB() { return _b / 255.0; }
+    };
+
     class E12ResSeriesUtil
     {
     private:
@@ -76,4 +94,26 @@ namespace util
         }
     };
     const std::array<uint8_t, 12> E12ResSeriesUtil::RES_VALS = {10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82}; // C++ so silly like that
+
+    class E12ResColors
+    {
+    private:
+        const static std::map<uint8_t, std::pair<ResColor, ResColor>> RES_DIGIT_COLORS;
+        const static std::map<uint8_t, ResColor> RES_EXP_COLORS;
+
+    public:
+        static std::tuple<ResColor, ResColor, ResColor> GetColors(uint8_t val, uint8_t exp)
+        {
+            if (RES_DIGIT_COLORS.count(val) == 0 || RES_EXP_COLORS.count(exp) == 0)
+            {
+                return {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+            }
+
+            const std::pair<ResColor, ResColor> &digitColors = RES_DIGIT_COLORS.at(val);
+            const ResColor &expColor = RES_EXP_COLORS.at(exp);
+            return {digitColors.first, digitColors.second, expColor};
+        }
+    };
+    // TODO CONTINUE HERE =================================================================================
+    // DEFINE digit colors and exp colors
 }

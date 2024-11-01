@@ -21,6 +21,7 @@ namespace util
     class LEDControl
     {
     private:
+        const uint32_t PWM_FREQ = 244;
         std::map<std::string, LEDConfig> *_leds;
 
     public:
@@ -31,22 +32,22 @@ namespace util
 
         ~LEDControl() { delete _leds; }
 
-        void AddLED(std::string &name, uint8_t redPin, uint8_t greenPin, uint8_t bluePin)
+        void AddLED(std::string name, uint8_t redPin, uint8_t greenPin, uint8_t bluePin)
         {
             uint8_t n = _leds->size() * 3;
-            _leds->emplace(name, LEDConfig{name, n, n + 1, n + 2});
+            _leds->emplace(name, LEDConfig{name, n, (uint8_t)(n + 1), (uint8_t)(n + 2)});
 
             // LEDC PWM setup
             for (uint8_t i = n; i <= n + 2; i++)
             {
-                ledcSetup(i, 244, 8);
+                ledcSetup(i, PWM_FREQ, 8);
             }
             ledcAttachPin(redPin, n);
             ledcAttachPin(greenPin, n + 1);
             ledcAttachPin(bluePin, n + 2);
         }
 
-        void WriteLED(std::string &name, double redPc, double greenPc, double bluePc)
+        void WriteLED(std::string name, double redPc, double greenPc, double bluePc)
         {
             // Get LED
             LEDConfig *led = &_leds->at(name);
