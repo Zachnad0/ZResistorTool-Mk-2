@@ -21,7 +21,7 @@ namespace util
     class LEDControl
     {
     private:
-        const uint32_t PWM_FREQ = 244;
+        const uint32_t PWM_FREQ = 120;
         std::map<std::string, LEDConfig> *_leds;
 
     public:

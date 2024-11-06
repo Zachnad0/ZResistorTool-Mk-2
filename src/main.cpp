@@ -14,20 +14,20 @@
 // Modes state enum
 enum ProgMode : uint8_t
 {
-    RGBLEDTestMode, // Prints millis() to LCD, sine cycles phases of LEDs. Second line shows bool toggled by VALUE
-    RawResMeasure,  // Shows raw meaured resistance. VALUE toggles LEDs that simply show resistance "strength"
-    E12ResMeasure,  // Shows measured res rounded to nearest E12, with decade. VALUE toggles LEDs that show color bands.
-    E12ResSearch    // Uses VALUE key to cycle through E12 values
+    RGBLEDTestMode = 3, // Prints millis() to LCD, sine cycles phases of LEDs. Second line shows bool toggled by VALUE
+    RawResMeasure = 1,  // Shows raw meaured resistance. VALUE toggles LEDs that simply show resistance "strength"
+    E12ResMeasure = 0,  // Shows measured res rounded to nearest E12, with decade. VALUE toggles LEDs that show color bands.
+    E12ResSearch = 2    // Uses VALUE key to cycle through E12 values
 };
 
 // Constants
 const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON2 = 35, PIN_BUTTON1 = 34,
-              PIN_R1 = 32, PIN_B1 = 33, PIN_G1 = 25, // LED 1
-    PIN_R2 = 18, PIN_B2 = 19, PIN_G2 = 21,           // LED 2
+              PIN_R1 = 18, PIN_B1 = 19, PIN_G1 = 21, // LED 1
+    PIN_R2 = 32, PIN_B2 = 33, PIN_G2 = 25,           // LED 2
     PIN_R3 = 4, PIN_B3 = 16, PIN_G3 = 17;            // LED 3
 const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10, RESMEASURE_RES1 = 2200;
 const std::string LED_DIGIT1 = "digit1", LED_DIGIT2 = "digit2", LED_EXP = "exp";
-const std::map<ProgMode, uint32_t> MODE_LOOP_DELAY = {{RGBLEDTestMode, 1 / 244.0}};
+const std::map<ProgMode, uint32_t> MODE_LOOP_DELAY = {{RGBLEDTestMode, 1 / 120.0}};
 
 // Fields
 LiquidCrystal_I2C *_lcdScreen = new LiquidCrystal_I2C{0x27, 16, 2};
@@ -35,7 +35,7 @@ util::LEDControl *_ledController = new util::LEDControl{};
 uint64_t _tOfLastKey1 = 0, _tOfLastKey2 = 0, _tOfLastLCDRfrsh = 0, TEMPKPR = 0;
 std::queue<uint8_t> *_keypressQueue = new std::queue<uint8_t>{};
 std::vector<uint32_t> *_adcRecentSamples = new std::vector<uint32_t>{};
-ProgMode _currProgramMode = RGBLEDTestMode;
+ProgMode _currProgramMode = (ProgMode)0;
 uint8_t _valueKeyState = 0;
 bool _firstFrameOfCurrMode = true;
 
@@ -119,13 +119,38 @@ void setup()
     _ledController->AddLED(LED_DIGIT1, PIN_R1, PIN_G1, PIN_B1);
     _ledController->AddLED(LED_DIGIT2, PIN_R2, PIN_G2, PIN_B2);
     _ledController->AddLED(LED_EXP, PIN_R3, PIN_G3, PIN_B3);
+
+    // Bootup Sequence
+    _lcdScreen->print("ZResistorToolMk2");
+
+    _lcdScreen->setCursor(0, 1);
+    _lcdScreen->print("------R--R--R---");
+    _ledController->WriteLED(LED_DIGIT1, 1, 0, 0);
+    _ledController->WriteLED(LED_DIGIT2, 1, 0, 0);
+    _ledController->WriteLED(LED_EXP, 1, 0, 0);
+    delay(500);
+    _lcdScreen->setCursor(0, 1);
+    _lcdScreen->print("------G--G--G---");
+    _ledController->WriteLED(LED_DIGIT1, 0, 1, 0);
+    _ledController->WriteLED(LED_DIGIT2, 0, 1, 0);
+    _ledController->WriteLED(LED_EXP, 0, 1, 0);
+    delay(500);
+    _lcdScreen->setCursor(0, 1);
+    _lcdScreen->print("------B--B--B---");
+    _ledController->WriteLED(LED_DIGIT1, 0, 0, 1);
+    _ledController->WriteLED(LED_DIGIT2, 0, 0, 1);
+    _ledController->WriteLED(LED_EXP, 0, 0, 1);
+    delay(500);
 }
 
 void loop()
 {
     uint64_t currMillis = millis();
-    // Update ADC readings
+    // Update ADC readings, cache measured resistance
     UpdateADCSamples();
+    double currMesRes = MeasureResistance();
+    uint8_t currResVal = 0, currResExp = 0xFF;
+    util::E12ResSeriesUtil::FindNearestE12Value(currMesRes, currResVal, currResExp);
 
     // Handle keypresses
     while (!_keypressQueue->empty())
@@ -134,9 +159,9 @@ void loop()
         // Key 1 is MODE
         if (key == 1)
         {
-            if (_currProgramMode == E12ResSearch)
+            if (_currProgramMode == (ProgMode)3)
             {
-                _currProgramMode = RGBLEDTestMode;
+                _currProgramMode = (ProgMode)0;
             }
             else
             {
@@ -177,7 +202,21 @@ void loop()
             _ledController->TurnOffAllLEDs();
         }
         break;
-        // TODO CONTINUE HERE ==============================================================================
+
+    case E12ResMeasure:
+        if (_valueKeyState == 0)
+        {
+            // LEDs are colors of bands
+            std::tuple<util::ResColor, util::ResColor, util::ResColor> bandColors = util::E12ResColors::GetColors(currResVal, currResExp);
+            _ledController->WriteLED(LED_DIGIT1, std::get<0>(bandColors));
+            _ledController->WriteLED(LED_DIGIT2, std::get<1>(bandColors));
+            _ledController->WriteLED(LED_EXP, std::get<2>(bandColors));
+        }
+        else
+        {
+            _ledController->TurnOffAllLEDs();
+        }
+        break;
     }
 
     // Check LCD refresh due
@@ -189,7 +228,6 @@ void loop()
             _lcdScreen->clear();
         }
 
-        uint8_t resVal = 0, resExp = 0xFF;
         switch (_currProgramMode)
         {
         case RGBLEDTestMode:
@@ -212,7 +250,7 @@ void loop()
             _lcdScreen->print("               ");
             _lcdScreen->setCursor(0, 1);
             _lcdScreen->print("R:");
-            _lcdScreen->print(MeasureResistance());
+            _lcdScreen->print(currMesRes);
             break;
 
         case E12ResMeasure:
@@ -222,13 +260,18 @@ void loop()
                 _lcdScreen->setCursor(0, 1);
                 _lcdScreen->print("R:");
             }
-            // Measure
-            util::E12ResSeriesUtil::FindNearestE12Value(MeasureResistance(), resVal, resExp);
             // Display
             _lcdScreen->setCursor(2, 1);
             _lcdScreen->print("              ");
             _lcdScreen->setCursor(2, 1);
-            _lcdScreen->print(util::E12ResSeriesUtil::ResValToString(resVal, resExp).c_str());
+            _lcdScreen->print(util::E12ResSeriesUtil::ResValToString(currResVal, currResExp).c_str());
+            // {
+            //     std::tuple<util::ResColor, util::ResColor, util::ResColor> bandColors = util::E12ResColors::GetColors(currResVal, currResExp);
+            //     _lcdScreen->print(" f:");
+            //     _lcdScreen->print(std::get<0>(bandColors).GetR());
+            //     _lcdScreen->print(std::get<0>(bandColors).GetG());
+            //     _lcdScreen->print(std::get<0>(bandColors).GetB());
+            // }
             break;
 
         case E12ResSearch:

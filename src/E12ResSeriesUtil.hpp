@@ -7,9 +7,9 @@
 
 #define __E12RESSERIESUTIL_H__
 #define __BLACK 0, 0, 0
-#define __BROWN 166, 74, 43
+#define __BROWN 126/3, 25/3, 0
 #define __RED 255, 0, 0
-#define __ORANGE 255, 165, 0
+#define __ORANGE 126, 20, 0
 #define __YELLOW 255, 255, 0
 #define __GREEN 0, 255, 0
 #define __BLUE 0, 0, 255
@@ -81,25 +81,27 @@ namespace util
         static std::string ResValToString(uint8_t value, uint8_t exp)
         {
             // E.g. 330Ω, 6.8kΩ
-            std::string result = "";
+            std::string result = "ERR";
             switch (exp)
             {
             case 0: // 33
-                result += std::to_string(value);
+                result = std::to_string(value);
                 break;
             case 1: // 330
-                result += std::to_string(value * 10.0);
+                result = std::to_string(value * 10);
                 break;
             case 2: // 3.3k
-                result += std::to_string(value / 10.0);
+                result = std::to_string((uint8_t)std::floor(value / 10.0));
+                result += '.';
+                result += std::to_string(value % 10);
                 result += 'k';
                 break;
             case 3: // 33k
-                result += std::to_string(value);
+                result = std::to_string(value);
                 result += 'k';
                 break;
             case 4: // 330k
-                result += std::to_string(value * 10.0);
+                result = std::to_string(value * 10);
                 result += 'k';
                 break;
             }
@@ -117,14 +119,16 @@ namespace util
     public:
         static std::tuple<ResColor, ResColor, ResColor> GetColors(uint8_t val, uint8_t exp)
         {
-            if (RES_DIGIT_COLORS.count(val) == 0 || RES_DIGIT_COLORS.count(exp) == 0)
+            uint8_t digit1 = (uint8_t)std::floor(val * 0.1), digit2 = val % 10;
+
+            if (RES_DIGIT_COLORS.count(digit1) == 0 || RES_DIGIT_COLORS.count(digit2) == 0 || RES_DIGIT_COLORS.count(exp) == 0)
             {
-                return {{__BLACK}, {__BLACK}, {__BLACK}};
+                return {{1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
             }
 
             const ResColor
-                &digit1Color = RES_DIGIT_COLORS.at((uint8_t)std::floor(val * 0.1)),
-                &digit2Color = RES_DIGIT_COLORS.at(val % 10),
+                &digit1Color = RES_DIGIT_COLORS.at(digit1),
+                &digit2Color = RES_DIGIT_COLORS.at(digit2),
                 &expColor = RES_DIGIT_COLORS.at(exp);
 
             return {digit1Color, digit2Color, expColor};
