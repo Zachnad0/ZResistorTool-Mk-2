@@ -49,18 +49,23 @@ namespace util
 
         void WriteLED(std::string name, double redPc, double greenPc, double bluePc)
         {
+            uint8_t r = (uint8_t)std::round(redPc * 255);
+            uint8_t g = (uint8_t)std::round(greenPc * 255);
+            uint8_t b = (uint8_t)std::round(bluePc * 255);
+            WriteLED(name, {r, g, b});
+        }
+
+        void WriteLED(std::string name, ResColor resColor)
+        {
             // Get LED
             LEDConfig *led = &_leds->at(name);
             if (led == nullptr)
                 return;
 
             // Write to LED
-            uint8_t r = (uint8_t)std::round(redPc * 255);
-            uint8_t g = (uint8_t)std::round(greenPc * 255);
-            uint8_t b = (uint8_t)std::round(bluePc * 255);
-            ledcWrite(led->_redChnl, r);
-            ledcWrite(led->_greenChnl, g);
-            ledcWrite(led->_blueChnl, b);
+            ledcWrite(led->_redChnl, resColor.GetR());
+            ledcWrite(led->_greenChnl, resColor.GetG());
+            ledcWrite(led->_blueChnl, resColor.GetB());
         }
 
         void TurnOffAllLEDs()

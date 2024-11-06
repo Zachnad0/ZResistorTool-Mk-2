@@ -21,7 +21,7 @@ enum ProgMode : uint8_t
 };
 
 // Constants
-const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON1 = 35, PIN_BUTTON2 = 34,
+const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON2 = 35, PIN_BUTTON1 = 34,
               PIN_R1 = 32, PIN_B1 = 33, PIN_G1 = 25, // LED 1
     PIN_R2 = 18, PIN_B2 = 19, PIN_G2 = 21,           // LED 2
     PIN_R3 = 4, PIN_B3 = 16, PIN_G3 = 17;            // LED 3
@@ -37,6 +37,7 @@ std::queue<uint8_t> *_keypressQueue = new std::queue<uint8_t>{};
 std::vector<uint32_t> *_adcRecentSamples = new std::vector<uint32_t>{};
 ProgMode _currProgramMode = RGBLEDTestMode;
 uint8_t _valueKeyState = 0;
+bool _firstFrameOfCurrMode = true;
 
 void UpdateADCSamples()
 {
@@ -139,16 +140,17 @@ void loop()
             }
             else
             {
-                // _currProgramMode = (ProgMode)(_currProgramMode + 1U);
+                _currProgramMode = (ProgMode)(_currProgramMode + 1U);
             }
-            // _valueKeyState = 0;
+            _valueKeyState = 0;
+            _firstFrameOfCurrMode = true;
         }
         // Key 2 is VALUE
         else if (key == 2)
         {
             switch (_currProgramMode)
             {
-            case RGBLEDTestMode:
+            default:
                 _valueKeyState = (_valueKeyState == 0) ? 1 : 0;
                 break;
             }
@@ -162,37 +164,86 @@ void loop()
     switch (_currProgramMode)
     {
     case RGBLEDTestMode:
-        // Cycle RGB colors depending on function
-        const double FREQ = 1, PHI1 = 0, PHI2 = 2 * PI / 3, PHI3 = 4 * PI / 3;
-        _ledController->WriteLED(LED_DIGIT1, __sineWave0To1(PHI1), __sineWave0To1(PHI2), __sineWave0To1(PHI3));
-        _ledController->WriteLED(LED_DIGIT2, __sineWave0To1(PHI3), __sineWave0To1(PHI1), __sineWave0To1(PHI2));
-        _ledController->WriteLED(LED_EXP, __sineWave0To1(PHI2), __sineWave0To1(PHI3), __sineWave0To1(PHI1));
+        if (_valueKeyState == 0)
+        {
+            // Cycle RGB colors depending on function
+            const double FREQ = 1, PHI1 = 0, PHI2 = 2 * PI / 3, PHI3 = 4 * PI / 3;
+            _ledController->WriteLED(LED_DIGIT1, __sineWave0To1(PHI1), __sineWave0To1(PHI2), __sineWave0To1(PHI3));
+            _ledController->WriteLED(LED_DIGIT2, __sineWave0To1(PHI3), __sineWave0To1(PHI1), __sineWave0To1(PHI2));
+            _ledController->WriteLED(LED_EXP, __sineWave0To1(PHI2), __sineWave0To1(PHI3), __sineWave0To1(PHI1));
+        }
+        else
+        {
+            _ledController->TurnOffAllLEDs();
+        }
         break;
+        // TODO CONTINUE HERE ==============================================================================
     }
 
     // Check LCD refresh due
     if (currMillis - _tOfLastLCDRfrsh > LCD_RFRSH_DLY_MS)
     {
         _tOfLastLCDRfrsh = currMillis;
-        _lcdScreen->clear();
+        if (_firstFrameOfCurrMode)
+        {
+            _lcdScreen->clear();
+        }
+
+        uint8_t resVal = 0, resExp = 0xFF;
         switch (_currProgramMode)
         {
         case RGBLEDTestMode:
-            _lcdScreen->print(currMillis);
-            _lcdScreen->print(" M:");
-            double mr = MeasureResistance();
-            _lcdScreen->print(mr);
+            if (_firstFrameOfCurrMode)
+            {
+                _lcdScreen->print("RGBLEDTest:");
+            }
             _lcdScreen->setCursor(0, 1);
-            uint8_t rVal = 0, rExp = 0;
-            util::E12ResSeriesUtil::FindNearestE12Value(mr, rVal, rExp);
-            _lcdScreen->print("V:");
-            _lcdScreen->print(rVal);
-            _lcdScreen->print(" E:");
-            _lcdScreen->print(rExp);
-            // _lcdScreen->print(MeasureResistance());
-            // _lcdScreen->write(0xF4);
+            _lcdScreen->print(currMillis);
+            break;
+
+        case RawResMeasure:
+            if (_firstFrameOfCurrMode)
+            {
+                // Static text
+                _lcdScreen->print("Raw Reading:");
+            }
+            // Dynamic data
+            _lcdScreen->setCursor(0, 1);
+            _lcdScreen->print("               ");
+            _lcdScreen->setCursor(0, 1);
+            _lcdScreen->print("R:");
+            _lcdScreen->print(MeasureResistance());
+            break;
+
+        case E12ResMeasure:
+            if (_firstFrameOfCurrMode)
+            {
+                _lcdScreen->print("E12 Reading:");
+                _lcdScreen->setCursor(0, 1);
+                _lcdScreen->print("R:");
+            }
+            // Measure
+            util::E12ResSeriesUtil::FindNearestE12Value(MeasureResistance(), resVal, resExp);
+            // Display
+            _lcdScreen->setCursor(2, 1);
+            _lcdScreen->print("              ");
+            _lcdScreen->setCursor(2, 1);
+            _lcdScreen->print(util::E12ResSeriesUtil::ResValToString(resVal, resExp).c_str());
+            break;
+
+        case E12ResSearch:
+            if (_firstFrameOfCurrMode)
+            {
+                _lcdScreen->print("WIP");
+            }
             break;
         }
+
+        // Top-right shows current mode
+        _lcdScreen->setCursor(14, 0);
+        _lcdScreen->write(0xE4); // μ
+        _lcdScreen->print(_currProgramMode);
+        _firstFrameOfCurrMode = false;
     }
 
     // Delay loop based on current program mode

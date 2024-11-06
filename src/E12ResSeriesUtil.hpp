@@ -6,6 +6,16 @@
 #include <string>
 
 #define __E12RESSERIESUTIL_H__
+#define __BLACK 0, 0, 0
+#define __BROWN 166, 74, 43
+#define __RED 255, 0, 0
+#define __ORANGE 255, 165, 0
+#define __YELLOW 255, 255, 0
+#define __GREEN 0, 255, 0
+#define __BLUE 0, 0, 255
+#define __VIOLET 238, 130, 238
+#define __GRAY 128, 128, 128
+#define __WHITE 255, 255, 255
 
 namespace util
 {
@@ -15,15 +25,19 @@ namespace util
         uint8_t _r, _g, _b;
 
     public:
-        ResColor(double rVal, double gVal, double bVal)
+        ResColor(uint8_t r, uint8_t g, uint8_t b)
         {
-            _r = (uint8_t)std::round(rVal * 255);
-            _g = (uint8_t)std::round(gVal * 255);
-            _b = (uint8_t)std::round(bVal * 255);
+            _r = r;
+            _g = g;
+            _b = b;
         }
-        inline double GetR() { return _r / 255.0; }
-        inline double GetG() { return _g / 255.0; }
-        inline double GetB() { return _b / 255.0; }
+        inline uint8_t GetR() { return _r; }
+        inline uint8_t GetG() { return _g; }
+        inline uint8_t GetB() { return _b; }
+
+        inline double GetRD() { return _r / 255.0; }
+        inline double GetGD() { return _g / 255.0; }
+        inline double GetBD() { return _b / 255.0; }
     };
 
     class E12ResSeriesUtil
@@ -67,25 +81,25 @@ namespace util
         static std::string ResValToString(uint8_t value, uint8_t exp)
         {
             // E.g. 330Ω, 6.8kΩ
-            std::string result;
+            std::string result = "";
             switch (exp)
             {
             case 0: // 33
-                result = value;
+                result += std::to_string(value);
                 break;
             case 1: // 330
-                result = value * 10;
+                result += std::to_string(value * 10.0);
                 break;
             case 2: // 3.3k
-                result = value / 10;
+                result += std::to_string(value / 10.0);
                 result += 'k';
                 break;
             case 3: // 33k
-                result = value;
+                result += std::to_string(value);
                 result += 'k';
                 break;
             case 4: // 330k
-                result = value * 10;
+                result += std::to_string(value * 10.0);
                 result += 'k';
                 break;
             }
@@ -98,22 +112,35 @@ namespace util
     class E12ResColors
     {
     private:
-        const static std::map<uint8_t, std::pair<ResColor, ResColor>> RES_DIGIT_COLORS;
-        const static std::map<uint8_t, ResColor> RES_EXP_COLORS;
+        const static std::map<uint8_t, ResColor> RES_DIGIT_COLORS;
 
     public:
         static std::tuple<ResColor, ResColor, ResColor> GetColors(uint8_t val, uint8_t exp)
         {
-            if (RES_DIGIT_COLORS.count(val) == 0 || RES_EXP_COLORS.count(exp) == 0)
+            if (RES_DIGIT_COLORS.count(val) == 0 || RES_DIGIT_COLORS.count(exp) == 0)
             {
-                return {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+                return {{__BLACK}, {__BLACK}, {__BLACK}};
             }
 
-            const std::pair<ResColor, ResColor> &digitColors = RES_DIGIT_COLORS.at(val);
-            const ResColor &expColor = RES_EXP_COLORS.at(exp);
-            return {digitColors.first, digitColors.second, expColor};
+            const ResColor
+                &digit1Color = RES_DIGIT_COLORS.at((uint8_t)std::floor(val * 0.1)),
+                &digit2Color = RES_DIGIT_COLORS.at(val % 10),
+                &expColor = RES_DIGIT_COLORS.at(exp);
+
+            return {digit1Color, digit2Color, expColor};
         }
     };
-    // TODO CONTINUE HERE =================================================================================
-    // DEFINE digit colors and exp colors
+    const std::map<uint8_t, ResColor> E12ResColors::RES_DIGIT_COLORS =
+        {
+            {0, {__BLACK}},
+            {1, {__BROWN}},
+            {2, {__RED}},
+            {3, {__ORANGE}},
+            {4, {__YELLOW}},
+            {5, {__GREEN}},
+            {6, {__BLUE}},
+            {7, {__VIOLET}},
+            {8, {__GRAY}},
+            {9, {__WHITE}},
+    };
 }
