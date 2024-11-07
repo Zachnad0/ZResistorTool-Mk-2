@@ -175,6 +175,15 @@ void loop()
         {
             switch (_currProgramMode)
             {
+            case E12ResSearch:
+                // Cycle through all E12 values, then increment exponent by 1
+                // Hahaha, this will be very annoying to use!
+                _valueKeyState++;
+                if (_valueKeyState >= 12 * 4)
+                {
+                    _valueKeyState = 0;
+                }
+
             default:
                 _valueKeyState = (_valueKeyState == 0) ? 1 : 0;
                 break;
@@ -217,6 +226,19 @@ void loop()
             _ledController->TurnOffAllLEDs();
         }
         break;
+
+    case E12ResSearch:
+    {
+        // Get values
+        uint8_t val = 0, exp = 0;
+        util::E12ResSeriesUtil::GetValueFromSearchIndex(_valueKeyState, val, exp);
+        // Write LEDS
+        std::tuple<util::ResColor, util::ResColor, util::ResColor> bandColors = util::E12ResColors::GetColors(val, exp);
+        _ledController->WriteLED(LED_DIGIT1, std::get<0>(bandColors));
+        _ledController->WriteLED(LED_DIGIT2, std::get<1>(bandColors));
+        _ledController->WriteLED(LED_EXP, std::get<2>(bandColors));
+    }
+    break;
     }
 
     // Check LCD refresh due
@@ -277,7 +299,17 @@ void loop()
         case E12ResSearch:
             if (_firstFrameOfCurrMode)
             {
-                _lcdScreen->print("WIP");
+                _lcdScreen->print("E12 Search:");
+                _lcdScreen->setCursor(0, 1);
+                _lcdScreen->print("R:");
+            }
+            {
+                uint8_t val = 0, exp = 0;
+                util::E12ResSeriesUtil::GetValueFromSearchIndex(_valueKeyState, val, exp);
+                _lcdScreen->setCursor(2, 1);
+                _lcdScreen->print("              ");
+                _lcdScreen->setCursor(2, 1);
+                _lcdScreen->print(util::E12ResSeriesUtil::ResValToString(val, exp).c_str());
             }
             break;
         }

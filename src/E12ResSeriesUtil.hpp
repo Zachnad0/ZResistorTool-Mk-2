@@ -7,7 +7,7 @@
 
 #define __E12RESSERIESUTIL_H__
 #define __BLACK 0, 0, 0
-#define __BROWN 126/3, 25/3, 0
+#define __BROWN 126 / 3, 25 / 3, 0
 #define __RED 255, 0, 0
 #define __ORANGE 126, 20, 0
 #define __YELLOW 255, 255, 0
@@ -107,6 +107,13 @@ namespace util
             }
 
             return result;
+        }
+
+        static void GetValueFromSearchIndex(uint8_t index, uint8_t &val, uint8_t &exp)
+        {
+            // Essentially base-12 counting
+            val = RES_VALS.at(index % 12);
+            exp = (uint8_t)std::floor(index / 12);
         }
     };
     const std::array<uint8_t, 12> E12ResSeriesUtil::RES_VALS = {10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82}; // C++ so silly like that
