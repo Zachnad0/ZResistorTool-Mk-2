@@ -3,3 +3,9 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# extra unused folders
+lib/
+test/
+include.
+.vscode/
