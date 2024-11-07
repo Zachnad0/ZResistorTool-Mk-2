@@ -22,6 +22,7 @@ namespace util
     {
     private:
         const uint32_t PWM_FREQ = 120;
+        const double BRIGHTNESS_MOD = 1 / 3.0;
         std::map<std::string, LEDConfig> *_leds;
 
     public:
@@ -63,9 +64,9 @@ namespace util
                 return;
 
             // Write to LED
-            ledcWrite(led->_redChnl, resColor.GetR());
-            ledcWrite(led->_greenChnl, resColor.GetG());
-            ledcWrite(led->_blueChnl, resColor.GetB());
+            ledcWrite(led->_redChnl, (uint8_t)std::round(resColor.GetR() * BRIGHTNESS_MOD));
+            ledcWrite(led->_greenChnl, (uint8_t)std::round(resColor.GetG() * BRIGHTNESS_MOD));
+            ledcWrite(led->_blueChnl, (uint8_t)std::round(resColor.GetB() * BRIGHTNESS_MOD));
         }
 
         void TurnOffAllLEDs()

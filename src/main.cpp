@@ -25,14 +25,14 @@ const uint8_t PIN_SDA = 27, PIN_SCL = 26, PIN_RESMEASURE = 39, PIN_BUTTON2 = 35,
               PIN_R1 = 18, PIN_B1 = 19, PIN_G1 = 21, // LED 1
     PIN_R2 = 32, PIN_B2 = 33, PIN_G2 = 25,           // LED 2
     PIN_R3 = 4, PIN_B3 = 16, PIN_G3 = 17;            // LED 3
-const uint32_t KEYPRESS_COOLDOWN_MS = 100, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10, RESMEASURE_RES1 = 2200;
+const uint32_t KEYPRESS_COOLDOWN_MS = 200, LCD_RFRSH_DLY_MS = 200, ADC_SAMPLE_COUNT = 10, RESMEASURE_RES1 = 2200;
 const std::string LED_DIGIT1 = "digit1", LED_DIGIT2 = "digit2", LED_EXP = "exp";
 const std::map<ProgMode, uint32_t> MODE_LOOP_DELAY = {{RGBLEDTestMode, 1 / 120.0}};
 
 // Fields
 LiquidCrystal_I2C *_lcdScreen = new LiquidCrystal_I2C{0x27, 16, 2};
 util::LEDControl *_ledController = new util::LEDControl{};
-uint64_t _tOfLastKey1 = 0, _tOfLastKey2 = 0, _tOfLastLCDRfrsh = 0, TEMPKPR = 0;
+uint64_t _tOfLastKey1 = 0, _tOfLastKey2 = 0, _tOfLastLCDRfrsh = 0;
 std::queue<uint8_t> *_keypressQueue = new std::queue<uint8_t>{};
 std::vector<uint32_t> *_adcRecentSamples = new std::vector<uint32_t>{};
 ProgMode _currProgramMode = (ProgMode)0;
@@ -179,10 +179,11 @@ void loop()
                 // Cycle through all E12 values, then increment exponent by 1
                 // Hahaha, this will be very annoying to use!
                 _valueKeyState++;
-                if (_valueKeyState >= 12 * 4)
+                if (_valueKeyState >= 12 * 5U)
                 {
                     _valueKeyState = 0;
                 }
+                break;
 
             default:
                 _valueKeyState = (_valueKeyState == 0) ? 1 : 0;
@@ -190,7 +191,6 @@ void loop()
             }
         }
 
-        TEMPKPR++;
         _keypressQueue->pop();
     }
 
@@ -304,7 +304,7 @@ void loop()
                 _lcdScreen->print("R:");
             }
             {
-                uint8_t val = 0, exp = 0;
+                uint8_t val = 255, exp = 255;
                 util::E12ResSeriesUtil::GetValueFromSearchIndex(_valueKeyState, val, exp);
                 _lcdScreen->setCursor(2, 1);
                 _lcdScreen->print("              ");
